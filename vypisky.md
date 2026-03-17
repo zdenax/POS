@@ -301,3 +301,70 @@ Mems_allowed_list: 0       # povolené NUMA paměťové uzly
 voluntary_ctxt_switches:    1   # dobrovolné přepnutí kontextu (čekal na I/O atd)
 nonvoluntary_ctxt_switches: 0   # nedobrovolné přepnutí (OS mu odebral procesor)
 ```
+
+---
+
+## /proc/self/maps - mapa virtuální paměti
+
+```bash
+cat /proc/self/maps
+# nebo
+less /proc/self/maps
+```
+
+Každý řádek = jedna namapovaná oblast:
+```
+adresa_od-adresa_do  práva  offset  zařízení  inode  soubor
+```
+
+### Práva (4 znaky)
+```
+r  = čtení
+w  = zápis
+x  = spouštění (CPU smí vykonávat instrukce)
+p  = privátní (copy-on-write, změny nejdou do souboru)
+s  = sdílená
+-  = dané právo chybí
+```
+
+### Datový a kódový region
+
+Spustitelný soubor je v mapě rozdělen do více regionů (sekcí ELF):
+```
+r--p   .rodata   read-only data (konstanty, string literály)
+r-xp   .text     kód (instrukce, spustitelné)
+r--p   .rodata   další read-only (tabulky, metadata)
+r--p             data před relokací
+rw-p   .data/.bss  zapisovatelná data (globální proměnné)
+```
+
+Další oblasti:
+```
+[heap]    rw-p   dynamická paměť (malloc)
+[stack]   rw-p   zásobník (lokální proměnné, návratové adresy)
+libc.so.6        standardní C knihovna
+ld-linux.so.2    dynamic linker (načítá sdílené knihovny)
+[vvar]    r--p   kernel data pro userspace (čas atd.)
+[vdso]    r-xp   Virtual Dynamic Shared Object - rychlé syscally bez přechodu do kernelu
+[vsyscall]       starší verze vdso, dnes legacy
+```
+
+### W^X princip
+
+**Žádný region nemá `rwx` zároveň !**
+Co je spustitelné nesmí být zapisovatelné a naopak ..
+Jinak by šlo zapsat vlastní kód a spustit ho = klasická bezpečnostní díra
+
+```
+r-xp  ← kód:  lze číst a spouštět, nelze zapisovat
+rw-p  ← data: lze číst a zapisovat, nelze spouštět
+```
+
+### Souvislost s /proc/self/status
+
+```
+VmExe  ← .text  region (r-xp)
+VmLib  ← sdílené knihovny (libc, ld-linux)
+VmData ← .data/.bss + heap (rw-p)
+VmStk  ← [stack] (rw-p)
+```
