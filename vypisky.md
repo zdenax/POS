@@ -1,0 +1,303 @@
+# POS - Výpisky
+17 March 2026
+
+---
+
+## Zombie procesy
+
+### Stavy procesu (Fišerova nomenklatura)
+
+JAK PROCES VNÍMÁ SVŮJ ŽIVOT ?
+
+- **RUNNING - R**
+- **SLEEPING - S**
+- **WAITING - W**
+- **NEW - N**
+- **ZOMBIE - Z**
+
+```
+NEW (N) → WAITING (W) ⇄ RUNNING (R) → SLEEPING (S)
+                                    ↘
+                                   ZOMBIE (Z)
+```
+
+z N NEW SE DOSTANEME DO WAITING .. a z R nebo W do Z (Zombie)
+
+Cyklus R→W je **preemptivní cyklus** (naplánování R→W)
+W ——> Rescheduling
+
+---
+
+### Jak vznikne zombie ?
+
+V lidském životě neexistují .. Ale tady každý proces končí ve stavu zombie ..
+
+1. **SEBEVRAŽDA** - proces zavolá službu, nevrátí se a přesune se do zombie
+2. **Vražda** - linux KILL - někdo někoho zavraždí
+3. **Smrtelný** - přistoupí někam kam nemá tak DOSTANE BANÁNA -- z jádra už nevystoupí
+
+---
+
+### Proč každý proces skončí jako zombie ?
+
+- Proces sám sebe nemůže ukončit .. Odstranit se z tabulky procesů .. Nene to nejde bude z tebe zombík
+- Mohl by běžet proces který neexistuje .. ale mezi dobou co smaze a než se vypne .. tak kdyby bylo přerušení zjistí s e že běží něco co neexistuje a zároveň má prostředky které patří neexistujícímu procesu
+
+**ZOMBIE VLASTNÍ MINIMÁLNÍ PROSTŘEDKY KTERÉ JSOU MU ROZKRADENY ..**
+
+---
+
+### Kdo zombie zabíjí ?
+
+**JE TO RODIČ**
+
+- Zombie si nese info jak skončil .. A díky tomu rodič pozná zda a pokud ho zabít ...
+- Většinou rodič volá službu **wait()** .. Čeká až budou děti zombici a pak je odstraníme ..
+- Az kdy odstraníme posledního zombika tak pak až je odstraníme ...
+
+**EXISTUJÍ BOHUŽEL RODIČE, KTEŘÍ SE O DĚTI NESTARAJÍ** - můžou vzniknout dlouhodobě běžící zombíci ..
+TO JE CHYBA !!
+
+Vadí nám nebo nevadí ? Obsazují tabulku procesů takže ANO VADÍ ..
+
+Není snadné zabít zombie .. KILLEM to nejde - zabijte JEHO RODIČE - a postará se o to funkce která se stará o sirotky ..
+
+---
+
+### Zombie bomba
+
+Jak vytvořit zombie ? Rodič vytváří kolik zombie kolik potřebujeme (1 cyklus jedna zombie)
+TO JE LINEÁRNÍ
+
+**Exponenciální zombie bomba** .. Každé dítě vytvoří další zombie atd ....
+
+Přeplní se celková tabulka a zmrzne systém JEDNA Z MOŽNOSTÍ DDOS (víc uživatelů).
+ZMRZNE POČÍTAČ
+-- jediný co tak root má rezervu ....
+
+---
+
+### Jak vytvořit zombie v Pythonu (ukázka)
+
+```python
+import os, time
+
+pid = os.fork()
+
+if pid == 0:
+    # DÍTĚ - okamžitě skončí → stává se zombie
+    os._exit(0)
+else:
+    # RODIČ - nevolá wait() → dítě je zombie
+    time.sleep(15)
+    os.waitpid(pid, 0)  # úklid
+```
+
+Spuštění ukázky:
+```bash
+python3 zombie_demo.py 3 15   # 3 zombie, 15 sekund
+```
+
+Filtrování zombie procesů:
+```bash
+ps aux | awk 'NR==1 || $8=="Z"'
+ps -eo pid,ppid,stat,cmd | grep -w Z
+```
+
+---
+
+## /proc/self/status
+
+`/proc/self/status` .. soubor v procfs který obsahuje informace o aktuálním procesu
+
+Zajímavé položky:
+
+| Položka | Popis |
+|---------|-------|
+| `Name` | jméno procesu |
+| `Pid` | PID procesu |
+| `PPid` | PID rodiče |
+| `State` | aktuální stav (R/S/W/Z) |
+| `Uid / Gid` | uživatel a skupina |
+| `VmRSS` | fyzická paměť v RAM (kB) |
+| `Threads` | počet vláken |
+| `SigQ` | fronta signálů (aktuální/max) |
+| **`Umask`** | maska oprávnění pro nové soubory |
+
+---
+
+### Umask
+
+`Umask: 0002`
+
+Umask = maska pro oprávnění nově vytvořených souborů ..
+Určuje jaká práva se **ODEBEROU** při vytvoření souboru/adresáře
+
+```
+0002 → odebírá právo zápisu pro ostatní (others)
+
+soubor by měl 666 → po umask 0002 dostane 664
+```
+
+Zkontrolovat:
+```bash
+cat /proc/self/status | grep Umask
+umask   # příkaz v shellu
+```
+
+---
+
+## Skupiny procesů - NS* identifikátory
+
+Z `/proc/self/status`:
+```
+NStgid:  4351
+NSpid:   4351
+NSpgid:  4351
+NSsid:   3242
+```
+
+### Hierarchie
+
+```
+SESSION (NSsid)                  ← konzolová skupina, jobs, zabije vše
+  └── PROCESS GROUP (NSpgid)     ← skupina procesů (např. pipeline)
+        └── PROCESS (NSpid)      ← samotný proces
+              └── THREAD GROUP (NStgid)   ← vlákna (moderní přídavek)
+```
+
+**NSsid** - Session ID .. konzolová skupina .. původně rodič a dítě a tato konzolová skupina ..
+`jobs` pracuje na této úrovni .. Zabijeme session → zabijeme vše pod ní ..
+
+**NSpgid** - Process Group ID .. skupina procesů ..
+Třeba pipeline: `cmd1 | cmd2 | cmd3` jsou všechny ve stejné skupině procesů
+
+**NSpid** - PID procesu v namespacu
+
+**NStgid** - Thread Group ID .. dřív neexistoval .. přibyl kvůli vláknům ..
+Všechna vlákna jednoho procesu sdílí stejný TGID ..
+Dneska jsou i další skupiny třeba pro vlákna atd ..
+
+---
+
+### Kdy jsou hodnoty stejné ?
+
+`NSpid == NSpgid == NStgid` → jsi leader své vlastní skupiny, nemáš sourozence ani vlákna
+
+`NSsid != NSpid` → session byl vytvořen jiným procesem (terminál, shell atd)
+
+---
+
+### Původní model vs dnešní
+
+| Dřív | Dnes |
+|------|------|
+| rodič + dítě | rodič + dítě |
+| konzolová skupina (session) | konzolová skupina (session) |
+| - | process group (pipeline) |
+| - | thread group (vlákna) |
+
+
+---
+
+## Paměť v /proc/self/status
+
+### VmLck vs VmPin
+
+**VmLck** - zamčené stránky .. `mlock()` .. stránka nejde na swap ..
+ale OS ji může přesunout v rámci RAM (page migration, NUMA atd)
+-- když jich zamkneme moc přestane fungovat kradení stránek xdd
+
+**VmPin** - přišpendlené stránky .. stránka nejde na swap + nesmí se ani pohnout v RAM ..
+fyzická adresa je fixní ..
+důvod: **DMA** - hardware přistupuje přímo na fyzickou adresu .. kdyby OS stránku přesunul tak hardware čte špatné místo
+
+```
+VmLck:  zamčená  →  no swap
+VmPin:  pinned   →  no swap + no move (fixní fyzická adresa)
+```
+
+### Max locked memory
+
+```bash
+ulimit -l                              # v kB
+echo "$(( $(ulimit -l) / 1024 )) MB"  # v MB
+```
+
+Na tomto systému: ~1.9 GB max locked memory
+
+
+---
+
+## /proc/self/status - anotovaný výstup
+
+```
+Name:     cat              # jméno procesu
+Umask:    0002             # maska oprávnění nových souborů (odebírá write pro others)
+State:    R (running)      # aktuální stav procesu (R/S/W/Z/T...)
+Tgid:     4862             # Thread Group ID (= PID pro jednovláknový proces)
+Ngid:     0                # NUMA group ID
+Pid:      4862             # PID procesu
+PPid:     4841             # PID rodiče
+TracerPid: 0               # PID kdo ho debuguje (0 = nikdo)
+Uid:      1003 1003 1003 1003   # real, effective, saved, filesystem UID
+Gid:      1003 1003 1003 1003   # real, effective, saved, filesystem GID
+FDSize:   64               # počet slotů v tabulce file descriptorů
+Groups:   27 100 1003      # skupiny ve kterých je uživatel
+
+NStgid:   4862             # Thread Group ID v namespacu
+NSpid:    4862             # PID v namespacu
+NSpgid:   4862             # Process Group ID v namespacu (pipeline skupina)
+NSsid:    4841             # Session ID v namespacu (konzolová skupina, jobs)
+Kthread:  0                # je to kernel thread? (0 = ne)
+
+VmPeak:   5828 kB          # maximum virtuální paměti jaké kdy proces dosáhl
+VmSize:   5828 kB          # aktuální virtuální paměť
+VmLck:    0 kB             # zamčené stránky (no swap, ale mohou se přesouvat v RAM)
+VmPin:    0 kB             # přišpendlené stránky (no swap + no move, fixní fyz. adresa, DMA)
+VmHWM:    1916 kB          # maximum fyzické RAM jaké kdy proces použil (High Water Mark)
+VmRSS:    1916 kB          # aktuální fyzická RAM (Resident Set Size)
+RssAnon:  104 kB           # anonymní stránky v RAM (heap, stack)
+RssFile:  1812 kB          # soubory namapované v RAM (executable, libs)
+RssShmem: 0 kB             # sdílená paměť v RAM
+VmData:   360 kB           # velikost datového segmentu (heap)
+VmStk:    132 kB           # velikost zásobníku
+VmExe:    20 kB            # velikost spustitelného kódu
+VmLib:    1748 kB          # sdílené knihovny
+VmPTE:    52 kB            # tabulky stránek
+VmSwap:   0 kB             # kolik je vyswapováno na disk
+
+HugetlbPages: 0 kB         # huge pages (velké stránky, 2MB/1GB místo 4KB)
+CoreDumping:  0            # právě dumpuje core? (0 = ne)
+THP_enabled:  1            # Transparent Huge Pages povoleny
+untag_mask:   0xfff...     # maska pro ARM memory tagging (ignoruj na x86)
+
+Threads:  1                # počet vláken procesu
+
+SigQ:     0/62134          # aktuální/max signálů ve frontě
+SigPnd:   0000...          # čekající signály pro toto vlákno
+ShdPnd:   0000...          # čekající signály pro celý proces
+SigBlk:   0000...          # zablokované signály
+SigIgn:   0000...          # ignorované signály
+SigCgt:   0000...          # zachycené signály (má handler)
+
+CapInh:   0000...          # inherited capabilities (co zdědí child)
+CapPrm:   0000...          # permitted capabilities (co smí použít)
+CapEff:   0000...          # effective capabilities (co právě používá)
+CapBnd:   0001ff...        # bounding set (strop - víc než tohle nikdy nedostane)
+CapAmb:   0000...          # ambient capabilities (pro neprivilegované exec)
+
+NoNewPrivs: 0              # zakázáno získat nová práva přes setuid/capabilities?
+Seccomp:    0              # seccomp filtr (0=vypnuto, 1=strict, 2=filter)
+Seccomp_filters: 0         # počet aktivních seccomp filtrů
+
+Speculation_Store_Bypass: thread vulnerable   # Spectre/Meltdown mitigace
+SpeculationIndirectBranch: conditional enabled
+
+Cpus_allowed:      f       # bitová maska povolených CPU (f = 1111 = 4 jádra)
+Cpus_allowed_list: 0-3     # povolená jádra (čitelně)
+Mems_allowed_list: 0       # povolené NUMA paměťové uzly
+
+voluntary_ctxt_switches:    1   # dobrovolné přepnutí kontextu (čekal na I/O atd)
+nonvoluntary_ctxt_switches: 0   # nedobrovolné přepnutí (OS mu odebral procesor)
+```
