@@ -14,3 +14,6 @@
   2. Rodič nevolá wait() → děti jsou zombie (stav Z v tabulce
   procesů)
   3. Po uplynutí doby rodič zavolá wait() → zombie zmizí
+
+---
+vault: [[Vault/School/POS]]
