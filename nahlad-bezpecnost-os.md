@@ -44,13 +44,35 @@ Používá se ve vojenských systémech (tajné, přísně tajné, ...).
 
 ---
 
-## Common Criteria (ISO 15408)
+## Common Criteria (CC) – ISO/IEC 15408
 
-Nástupce Orange Book -- mezinárodní standard.
+Nástupce Orange Book -- mezinárodní standard pro evaluaci bezpečnosti IT produktů.
 
-- **EAL** (Evaluation Assurance Level) -- úrovně 1–7
 - Umožňuje srovnávat produkty od různých výrobců
-- Certifikace prováděna nezávislými laboratořemi
+- Certifikace prováděna nezávislými laboratořemi (akreditované testovací centrum)
+- Výsledek: certifikát uznaný ve více zemích (vzájemné uznávání přes CCRA dohodu)
+
+### Klíčové pojmy CC
+
+- **TOE** (Target of Evaluation) -- produkt nebo systém, který se hodnotí
+- **ST** (Security Target) -- dokument popisující bezpečnostní vlastnosti TOE
+- **PP** (Protection Profile) -- šablona požadavků pro danou kategorii produktů (např. firewall, OS)
+- **SFR** (Security Functional Requirements) -- co systém musí dělat (funkce)
+- **SAR** (Security Assurance Requirements) -- jak moc věříme, že to dělá správně (záruky)
+
+### EAL – Evaluation Assurance Levels
+
+| EAL | Název                        | Popis                                                      | Příklad              |
+|-----|------------------------------|------------------------------------------------------------|----------------------|
+| 1   | Functionally Tested          | základní testování funkčnosti                              | běžné komerční produkty |
+| 2   | Structurally Tested          | + analýza návrhu, testování vývojářem                     |                      |
+| 3   | Methodically Tested          | + vývojový proces, code review                            | mnoho OS, firewallů  |
+| 4   | Methodically Designed        | + formální návrh, nezávislé testování                     | Windows, RHEL, iOS   |
+| 5   | Semiformally Designed        | + semiformální modely, penetrační testy                   | čipové karty         |
+| 6   | Semiformally Verified        | + strukturovaný vývoj, hloubková analýza                  | vojenské systémy     |
+| 7   | Formally Verified            | formálně ověřený návrh i implementace                     | velmi vzácné         |
+
+> Většina komerčních produktů cílí na **EAL 4** -- dobrý kompromis mezi zárukami a náklady na certifikaci.
 
 ---
 
