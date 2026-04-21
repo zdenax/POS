@@ -103,9 +103,9 @@ H == H' ? OK : CHYBA
 ### Symetrická
 
 - Jeden klíč pro šifrování i dešifrování
-- **Základní problém**: jak bezpečně předat klíč protistraně?
 - Rychlá (AES, ChaCha20)
 - Vhodná pro šifrování dat
+- **Největší problém: distribuce klíče** -- jak bezpečně dostat klíč k protistraně, aniž by ho někdo odposlouchal? Pokud máme bezpečný kanál pro přenos klíče, proč ho nepoužít rovnou pro data?
 
 ### Asymetrická
 
