@@ -75,9 +75,27 @@ H == H' ? OK : CHYBA
 
 ### Vlastnosti kryptografického hashe
 
-- **Jednosměrnost** – z výstupu nelze rekonstruovat vstup
-- **Odolnost vůči kolizím** – těžké najít dva různé vstupy se stejným hashem
-- **Odolnost vůči druhé vzorce** – těžké najít jiný vstup se stejným hashem jako daný vstup
+Říct jen "jednosměrná funkce" nestačí -- u zkoušky to nestačí! Správná odpověď jsou tři odolnosti + lavinový efekt:
+
+**1. Jednosměrnost (preimage resistance)**
+- Z hashe nelze rekonstruovat vstup
+- Útočník zná H(x), neumí najít x
+
+**2. Odolnost vůči kolizím (collision resistance)**
+- Těžké najít libovolné dva různé vstupy M ≠ M' takové, že H(M) = H(M')
+- "Netriviální kolize" -- útočník si vybírá oba dokumenty volně
+- Fix: dostatečně velký výstupní prostor (birthday paradox: útok vyžaduje ~2^(n/2) operací -- proto SHA-256 má 256 bitů)
+
+**3. Odolnost vůči druhé vzorové (second preimage resistance)**
+- Máme konkrétní dokument M, těžké najít jiný M' ≠ M takový, že H(M) = H(M')
+- Útočník nemá volnou ruku -- musí zachovat smysl/podobnost s originálem
+- Praktický příklad: dokument ve Wordu -- útočník zneužije strukturu souboru (hlavičky, metadata, padding) a vytvoří jiný dokument se stejným hashem → podpis originálu platí i pro falzum
+- Útočník musí dodat "smysluplný" dokument, ne jen náhodná data
+
+**4. Lavinový efekt (avalanche effect)**
+- Změna jediného bitu vstupu → změna ~50 % bitů výstupu
+- Výstup nevykazuje žádnou korelaci se vstupem
+- Zásadní vlastnost -- bez ní by hash "prozrazoval" informace o vstupu
 
 ### Použití
 
