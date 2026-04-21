@@ -110,9 +110,14 @@ H == H' ? OK : CHYBA
 ### Asymetrická
 
 - Dvojice klíčů: veřejný (šifrování) + soukromý (dešifrování)
-- Řeší problém distribuce klíče
+- Řeší problém distribuce klíče -- veřejný klíč lze sdílet volně
 - Pomalá – nehodí se pro šifrování velkých dat
 - Vhodná pro **výměnu klíčů** a **digitální podpisy**
+- **Základní problém: podvržení veřejného klíče (MitM)**
+  - Útočník se postaví mezi dva komunikující, každému podstrčí svůj veřejný klíč
+  - Každá strana si myslí, že komunikuje s tou druhou, ale šifruje pro útočníka
+  - Řešení: **certifikáty** -- veřejný klíč podepsán důvěryhodnou třetí stranou (CA), která potvrzuje identitu
+  - Bez CA (nebo jiného mechanismu důvěry) asymetrická kryptografie MitM neřeší
 
 ### V praxi: hybridní přístup
 
