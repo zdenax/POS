@@ -1,5 +1,5 @@
 # KI/POS – Shrnutí
-**Datum:** 16. 5. 2025  
+**Datum:** 16. 5. 2025
 **Týden:** 13.
 
 ---
@@ -64,50 +64,41 @@ Ukazuje jak je soubor vnitřně strukturován na disku -- dvě dimenze: boot/hla
 - **metadata** – informace o souborech (i-uzly, adresářové záznamy)
 - **data** – samotná uživatelská data souborů
 
+---
 
+## Poznámky z hodiny – 21. 4. 2026
 
-# (nejde mi opt key) 21-04-2026
+### namei
 
-namei (cela cesta k sobouru) treba /boot/efi/EFI/ubuntu/grub.cfg
+`namei` prochází celou cestu k souboru postupně, složku po složce.
 
-zacne a zacne oteviraat postupně ... a omylem v tom efi se podiva do jineho souboroveho systému .. 
+Příklad: `namei /boot/efi/EFI/ubuntu/grub.cfg`
 
+Začne od kořene a otevírá adresáře postupně -- při průchodu `/boot/efi` může narazit na jiný souborový systém (EFI oddíl je např. FAT32), takže automaticky přejde do jiného FS.
 
+---
 
+# JAK TO VYPADÁ KDYŽ OTEVŘEME SOUBOR
 
+```
+fd <- open("/bin/ls")
+```
 
-# JAK TO VYPADÁ KDYŽ OTEVŘEME SOUBOR
------------------------------------------
+1. zavolá `namei`
+2. podívá se do souborového systému a hledá
 
-fd <- open ("/bin/ls")
+```
+------
+|blok|   i-uzly
+------
+```
 
+Kernel si i-uzly **kešuje** -- vznikne **dynamický i-uzel** (obsahuje kopii fyzického i-uzlu + reference count).
 
-1) zavolá si namei
-2) podiva se do souboroveho systemu a hleda 
+Příklad: i-číslo 150 → fyzický uzel na disku
 
-	
-   
- 	------
-	|blok|	 i uzly 
-	------
+---
 
-	on si ty i uzly "kešuje"
-
-	vznikne dynamický uzel -> obsahuje kopii fyzického & ještě k tomu to druhý...
-
-	150 -> fyzický uzel 
-
-
-# SYSTÉMOVÁ TABULKA SYSTÉMOVÝCH SOUBORŮ –> SYSFILETABLE -> je to v kernelu btw
-
-2 částí -> odkaz na dyn. uzel a file pointer (na začátku 0 "na read a write .. ale na append muze byt an konci")
-
-a kazda sluzaba ma: TASK FILETABLE a obsahuje odkaz na tu systemovou tabulku souborů 
-
-file table ja tabulka a má indexy -- treba 0 1 2 a to co nam vrati byla zrovna ta 3jak třeba
-
-**DOPLNIT OBRÁZEK Z TABULE PAK**
-------------------------------------
 # Tabulky otevřených souborů (Unix/Linux)
 
 ---
@@ -163,38 +154,86 @@ Task File Table            Sys File Table
 - **`dup(fd)`** -- zkopíruje ukazatel v Task File Table; oba fd sdílejí tentýž záznam v SysFileTable (= stejný file pointer, stejný soubor)
 - **přímý zápis `fd = 3`** -- jen přepsání čísla v paměti procesu, OS o tom neví, nic se reálně nezmění
 
+---
 
-# stat obr.png 
+## stat
 
-vypise zakladni infromace jmeno velikost pčet obsazených  bloku atd -> dodat nejakej priklad ze systemu potom
+```bash
+stat obr.png
+```
 
-zmeny obsahu atd 
+Vypíše základní informace: jméno, velikost, počet obsazených bloků, časy změn obsahu/metadat atd.
 
-mame treba parametr -f a ukazuje souborove id 
+- parametr `-f` -- zobrazí informace o souborovém systému (včetně souborového ID)
 
+> Dodat příklad výstupu ze systému.
 
+---
 
+## ls -i
 
+Zobrazí **i-čísla (inode numbers)** souborů -- přesně ta čísla, která `namei` používá k lokalizaci souboru na disku.
 
+```bash
+$ ls -i /bin/ls
+1234567 /bin/ls
+```
 
+Každý soubor má unikátní i-číslo v rámci svého souborového systému. Pevné odkazy (`ln`) sdílejí stejné i-číslo (= stejný i-uzel, stejná data).
 
+---
 
+## umask
 
+**umask** (user file creation mask) je maska, která určuje, jaká oprávnění **nebudou** nastavena při vytvoření nového souboru nebo adresáře.
 
+Výchozí maximum oprávnění:
+- soubor: `666` (rw-rw-rw-)
+- adresář: `777` (rwxrwxrwx)
 
+Z toho se odečte umask:
 
+```
+umask 022:
+  soubor:   666 - 022 = 644  (rw-r--r--)
+  adresář:  777 - 022 = 755  (rwxr-xr-x)
+```
 
+| umask | soubor | adresář |
+|-------|--------|---------|
+| 022   | 644    | 755     |
+| 027   | 640    | 750     |
+| 077   | 600    | 700     |
 
+```bash
+$ umask       # zobrazí aktuální masku
+0022
+```
 
+Umask je nastavení shellu -- není trvalý přes reboot, pokud ho nedáš do `.bashrc`.
 
+---
 
+## mv mezi adresáři
 
+Při přesunu souboru pomocí `mv` mezi adresáři systém ví, jestli je cíl adresář nebo soubor:
 
+- pokud cíl **je adresář** -- soubor se přesune **dovnitř** toho adresáře (zachová původní jméno)
+- pokud cíl **není adresář** -- soubor se přejmenuje / přesune na danou cestu
 
+```bash
+mv soubor.txt /home/user/dokumenty/
+# → přesune jako /home/user/dokumenty/soubor.txt
 
+mv soubor.txt /home/user/dokumenty/novy.txt
+# → přesune a přejmenuje na novy.txt
+```
 
+Pokud `mv` přesouvá v rámci **stejného souborového systému** -- jen aktualizuje adresářový záznam (i-uzel zůstane stejný, žádná data se nekopírují). Přes různé FS se data fyzicky zkopírují a původní soubor smaže.
 
-# TROŠKU MIMO TÉMA : 
+---
+
+# TROŠKU MIMO TÉMA :
 
 # FAT – File Allocation Table
 
@@ -256,7 +295,7 @@ Soubor A tedy zabírá clustery: 2 → 3 → 5 → EOF (řetěz).
 
 ---
 
-ssssss# Nevýhody FAT vs. moderní FS (ext4, NTFS)
+## Nevýhody FAT vs. moderní FS (ext4, NTFS)
 
 - **fragmentace** -- soubory jsou roztroušeny v řetězech po celém disku
 - **žádná žurnalizace** -- při výpadku proudu hrozí poškození dat
@@ -276,13 +315,4 @@ ssssss# Nevýhody FAT vs. moderní FS (ext4, NTFS)
 | Žurnalizace          | ne (exFAT částečně)        | ano                      |
 | Pevné odkazy         | ne                         | ano                      |
 
-
-
-
-
 # KONEC MIMO TÉMA
-
-
-
-
-
